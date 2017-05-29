@@ -18,7 +18,9 @@
 
     <dubbo:consumer timeout="100000000" />
 
-    <dubbo:reference id="userService" interface="me.hao0.trace.user.service.UserService" filter="TraceConsumerFilter" />
+    <dubbo:reference id="userService" interface="me.hao0.trace.user.service.UserService" filter="TraceConsumerFilter" >
+        <dubbo:method name="delById" async="true"></dubbo:method>
+    </dubbo:reference>
 
     <dubbo:reference id="orderService" interface="me.hao0.trace.order.service.OrderService" filter="TraceConsumerFilter" />
 

@@ -29,7 +29,7 @@ public class TraceConsumerFilter implements Filter {
     @Override
     public Result invoke(Invoker<?> invoker, Invocation invocation) throws RpcException {
 
-        if (TraceContext.getTraceId() == null){
+        if (TraceContext.getTraceId() == null) {
             // not need tracing
             return invoker.invoke(invocation);
         }
@@ -39,24 +39,27 @@ public class TraceConsumerFilter implements Filter {
 
         Span consumeSpan = startTrace(invoker, invocation);
 
+
         System.err.println("consumer invoke before: ");
         TraceContext.print();
+        RpcResult rpcResult = null;
+        try {
+            Result result = invoker.invoke(invocation);
+            rpcResult = (RpcResult) result;
 
-        Result result = invoker.invoke(invocation);
-        RpcResult rpcResult = (RpcResult)result;
+            System.err.println("consumer invoke after: ");
+            TraceContext.print();
 
-        System.err.println("consumer invoke after: ");
-        TraceContext.print();
+            System.err.println("sr time: " + rpcResult.getAttachment(TraceConstants.SR_TIME));
+            System.err.println("ss time: " + rpcResult.getAttachment(TraceConstants.SS_TIME));
 
-        System.err.println("sr time: " + rpcResult.getAttachment(TraceConstants.SR_TIME));
-        System.err.println("ss time: " + rpcResult.getAttachment(TraceConstants.SS_TIME));
-
-        endTrace(invoker, rpcResult, consumeSpan, watch);
-
-        return rpcResult;
+            return rpcResult;
+        } finally {
+            endTrace(invoker, rpcResult, consumeSpan, watch);
+        }
     }
 
-    private Span startTrace(Invoker<?> invoker, Invocation invocation){
+    private Span startTrace(Invoker<?> invoker, Invocation invocation) {
 
         // start consume span
         Span consumeSpan = new Span();
@@ -65,7 +68,8 @@ public class TraceConsumerFilter implements Filter {
         long parentId = TraceContext.getSpanId();
         consumeSpan.setTrace_id(traceId);
         consumeSpan.setParent_id(parentId);
-        String serviceName = invoker.getInterface().getSimpleName() + "." + invocation.getMethodName();
+        String serviceName =
+            invoker.getUrl().getServiceInterface() + "." + invocation.getMethodName();
         consumeSpan.setName(serviceName);
         long timestamp = Times.currentMicros();
         consumeSpan.setTimestamp(timestamp);
@@ -74,16 +78,14 @@ public class TraceConsumerFilter implements Filter {
         URL provider = invoker.getUrl();
         int providerHost = Networks.ip2Num(provider.getHost());
         int providerPort = provider.getPort();
-        consumeSpan.addToAnnotations(
-            Annotation.create(timestamp, TraceConstants.ANNO_CS,
-                Endpoint.create(serviceName, providerHost, providerPort)));
+        consumeSpan.addToAnnotations(Annotation.create(timestamp, TraceConstants.ANNO_CS,
+            Endpoint.create(serviceName, providerHost, providerPort)));
 
         String providerOwner = provider.getParameter("owner");
-        if (!Strings.isNullOrEmpty(providerOwner)){
+        if (!Strings.isNullOrEmpty(providerOwner)) {
             // app owner
-            consumeSpan.addToBinary_annotations(BinaryAnnotation.create(
-                "owner", providerOwner, null
-            ));
+            consumeSpan
+                .addToBinary_annotations(BinaryAnnotation.create("owner", providerOwner, null));
         }
 
         // attach trace data
@@ -99,17 +101,17 @@ public class TraceConsumerFilter implements Filter {
 
         // cr annotation
         URL provider = invoker.getUrl();
-        consumeSpan.addToAnnotations(
-            Annotation.create(Times.currentMicros(), TraceConstants.ANNO_CR,
-                Endpoint.create(consumeSpan.getName(), Networks.ip2Num(provider.getHost()), provider.getPort())));
+        consumeSpan.addToAnnotations(Annotation
+            .create(Times.currentMicros(), TraceConstants.ANNO_CR, Endpoint
+                .create(consumeSpan.getName(), Networks.ip2Num(provider.getHost()),
+                    provider.getPort())));
 
         // exception catch
         Throwable throwable = result.getException();
-        if (throwable != null){
+        if (throwable != null) {
             // attach exception
-            consumeSpan.addToBinary_annotations(BinaryAnnotation.create(
-                "Exception", Throwables.getStackTraceAsString(throwable), null
-            ));
+            consumeSpan.addToBinary_annotations(BinaryAnnotation
+                .create("Exception", Throwables.getStackTraceAsString(throwable), null));
         }
 
         // collect the span

@@ -3,5 +3,5 @@
 enable: true
 
 # The zipkin trace server
-server: 'localhost:9411'
+server: '120.55.186.38:9411'
 

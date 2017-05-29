@@ -27,7 +27,7 @@
 
     <dubbo:registry address="${dubbo.registry}" protocol="zookeeper" />
 
-    <dubbo:protocol port="-1" />
+    <dubbo:protocol port="6100" />
 
     <dubbo:consumer timeout="100000000" />
 

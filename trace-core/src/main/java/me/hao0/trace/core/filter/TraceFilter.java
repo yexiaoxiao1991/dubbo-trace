@@ -16,6 +16,7 @@ import me.hao0.trace.core.util.ServerInfo;
 import me.hao0.trace.core.util.Times;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import javax.servlet.*;
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -40,51 +41,57 @@ public class TraceFilter implements Filter {
     @Override
     public void init(FilterConfig config) throws ServletException {
 
-        if (!conf.getEnable()){
+        if (!conf.getEnable()) {
             return;
         }
 
         agent = new TraceAgent(conf.getServer());
 
-        log.info("init the trace filter with config({}).", new Object[]{config});
+        log.info("init the trace filter with config({}).", new Object[] {config});
     }
 
     @Override
-    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+        throws IOException, ServletException {
 
-        if (!conf.getEnable()){
+
+        if (!conf.getEnable()) {
             chain.doFilter(request, response);
             return;
         }
 
-        HttpServletRequest req = (HttpServletRequest)request;
+        HttpServletRequest req = (HttpServletRequest) request;
         String uri = req.getRequestURI();
 
         TracePoint point = matchTrace(uri);
-        if (point == null){
+        if (point == null) {
             // not need to trace
             chain.doFilter(request, response);
         } else {
             // do trace
-
             Stopwatch watch = Stopwatch.createStarted();
 
             // start root span
             Span rootSpan = startTrace(req, point);
+            try {
 
-            // prepare trace context
-            TraceContext.start();
-            TraceContext.setTraceId(rootSpan.getTrace_id());
-            TraceContext.setSpanId(rootSpan.getId());
-            TraceContext.addSpan(rootSpan);
+                // prepare trace context
+                TraceContext.start();
+                TraceContext.setTraceId(rootSpan.getTrace_id());
+                TraceContext.setSpanId(rootSpan.getId());
+                TraceContext.addSpan(rootSpan);
 
-            // executor other filters
-            chain.doFilter(request, response);
+                // executor other filters
+                chain.doFilter(request, response);
+            } finally {
+                // end root span
+                endTrace(req, rootSpan, watch);
 
-            // end root span
-            endTrace(req, rootSpan, watch);
-
+            }
         }
+
+
+
     }
 
     private Span startTrace(HttpServletRequest req, TracePoint point) {
@@ -101,25 +108,19 @@ public class TraceFilter implements Filter {
         apiSpan.setTimestamp(timestamp);
 
         // sr annotation
-        apiSpan.addToAnnotations(
-                Annotation.create(timestamp, TraceConstants.ANNO_SR,
-                        Endpoint.create(apiName, ServerInfo.IP4, req.getLocalPort())));
+        apiSpan.addToAnnotations(Annotation.create(timestamp, TraceConstants.ANNO_SR,
+            Endpoint.create(apiName, ServerInfo.IP4, req.getLocalPort())));
 
         // app name
-        apiSpan.addToBinary_annotations(BinaryAnnotation.create(
-            "name", conf.getName(), null
-        ));
+        apiSpan.addToBinary_annotations(BinaryAnnotation.create("name", conf.getName(), null));
 
         // app owner
-        apiSpan.addToBinary_annotations(BinaryAnnotation.create(
-            "owner", conf.getOwner(), null
-        ));
+        apiSpan.addToBinary_annotations(BinaryAnnotation.create("owner", conf.getOwner(), null));
 
         // trace desc
-        if (!Strings.isNullOrEmpty(point.getDesc())){
-            apiSpan.addToBinary_annotations(BinaryAnnotation.create(
-                "description", point.getDesc(), null
-            ));
+        if (!Strings.isNullOrEmpty(point.getDesc())) {
+            apiSpan.addToBinary_annotations(
+                BinaryAnnotation.create("description", point.getDesc(), null));
         }
 
         return apiSpan;
@@ -127,9 +128,8 @@ public class TraceFilter implements Filter {
 
     private void endTrace(HttpServletRequest req, Span span, Stopwatch watch) {
         // ss annotation
-        span.addToAnnotations(
-                Annotation.create(Times.currentMicros(), TraceConstants.ANNO_SS,
-                        Endpoint.create(span.getName(), ServerInfo.IP4, req.getLocalPort())));
+        span.addToAnnotations(Annotation.create(Times.currentMicros(), TraceConstants.ANNO_SS,
+            Endpoint.create(span.getName(), ServerInfo.IP4, req.getLocalPort())));
 
         span.setDuration(watch.stop().elapsed(TimeUnit.MICROSECONDS));
 
@@ -140,9 +140,9 @@ public class TraceFilter implements Filter {
     private TracePoint matchTrace(String uri) {
 
         List<TracePoint> points = conf.getPoints();
-        if (points != null && !points.isEmpty()){
-            for (TracePoint point : points){
-                if (Pattern.compile(point.getPattern()).matcher(uri).matches()){
+        if (points != null && !points.isEmpty()) {
+            for (TracePoint point : points) {
+                if (Pattern.compile(point.getPattern()).matcher(uri).matches()) {
                     return point;
                 }
             }

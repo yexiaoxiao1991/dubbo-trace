@@ -13,4 +13,6 @@ public interface UserService {
    User findById(Long id);
 
    List<Addr> myAddrs(Long userId);
+
+   void delById(Long id);
 }

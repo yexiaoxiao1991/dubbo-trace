@@ -23,11 +23,11 @@
         <property name="ignoreUnresolvablePlaceholders" value="true" />
     </bean>
 
-    <dubbo:application name="user-service" logger="slf4j" />
+    <dubbo:application name="user-service" logger="slf4j" owner="sion"/>
 
     <dubbo:registry address="${dubbo.registry}" protocol="zookeeper" />
 
-    <dubbo:protocol port="-1" />
+    <dubbo:protocol port="6000" />
 
     <dubbo:consumer timeout="100000000" />
 
